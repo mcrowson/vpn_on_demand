@@ -1,7 +1,7 @@
 # VPN on Demand
 Send text messages to start and stop your own VPN on AWS for super cheap.
 
-![Send Text Messages](images/texting.png =225px) ![To Start Your VPN](images/vpn_setting.png =225px)
+![Send Text Messages](images/texting.png | width=225px) ![To Start Your VPN](images/vpn_setting.png | width=225px)
 
 Having a personal VPN gives you more control over logs and easily toggling the VPN instance can keep costs way down.
 This approach does it by combining the following tools:
@@ -107,7 +107,7 @@ phone number can only be used to call/message approved phone numbers.
 - From the [Twilio Console](https://www.twilio.com/console) grab the ACCOUNT SID and AUTH TOKEN values. We will need those later.
 - Navigate to the [Purchase a Number](https://www.twilio.com/console/phone-numbers/search) page and buy a new number with SMS capabilities.
 
-![Twilio phone number purchase page](images/purchase_number.png =300px)
+![Twilio phone number purchase page](images/purchase_number.png | width=300px)
 
 - Add your personal phone number to the list of [Verified Callers](https://www.twilio.com/console/phone-numbers/verified)
 
@@ -150,7 +150,7 @@ The API is live now. So we are going back to Twilio to tell it to send incoming 
 - Towards the bottom of the page, add your API Gateway endpoint to the incoming
 message as a webhook.
 
-![Twilio webhook add URL](images/webhook.png =300px)
+![Twilio webhook add URL](images/webhook.png | width=300px)
 
 When your new number recieves a text, it will send a POST request to the API we have deployed.
 
