@@ -1,7 +1,7 @@
 # VPN on Demand
 Send text messages to start and stop your own VPN on AWS for super cheap.
 
-[!Send Text Messages](images/texting.png) [!To Start Your VPN](images/vpn_settings.png)
+![Send Text Messages](images/texting.png) ![To Start Your VPN](images/vpn_settings.png)
 
 Having a personal VPN gives you more control over logs and easily toggling the VPN instance can keep costs way down.
 This approach does it by combining the following tools:
