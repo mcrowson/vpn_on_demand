@@ -1,5 +1,7 @@
-# On Demand VPN
+# VPN on Demand
 Send text messages to start and stop your own VPN on AWS for super cheap.
+
+[!Send Text Messages](images/texting.png) [!To Start Your VPN](images/vpn_settings.png)
 
 Having a personal VPN gives you more control over logs and easily toggling the VPN instance can keep costs way down.
 This approach does it by combining the following tools:
@@ -11,32 +13,23 @@ This approach does it by combining the following tools:
 
 Clone the repo:
 ```bash
-git clone url
+git clone https://github.com/mcrowson/vpn_on_demand
 cd vpn_on_demand
 ```
+
+This guide uses Python 3.6 and [jq](https://stedolan.github.io/jq/). jq just makes things a little easier
+when pulling data out of the AWS CLI JSON responses.
 
 #### The VPN Instance
 The instance here is a t2.nano running OpenVPN. Let's launch an EC2 instance using the [AWS CLI](https://aws.amazon.com/cli/)
 
-The instance should only have port 1149 open for the VPN, but we'll need to shell into it for the setup. So the security
-group will have both ports 22 and 1149 open initially. We will close port 22 after setup is complete.
+The instance should only have port 1194 open for the VPN, but we'll need to shell into it for the setup. So the security
+group will have both ports 22 and 1194 open initially. We will close port 22 after setup is complete.
 
 ```bash
-aws ec2 create-security-group --description OpenVPN Port --group-name VPN
-```
-
-It will give you JSON response with the security group id. Something like
-
-```json
-{
-    "GroupId": "sg-903004f8"
-}
-```
-
-Let's open up Port 1149 and 22 on there
-```bash
-aws ec2 authorize-security-group-ingress --group-id sg-903004f8 --protocol udp --port 1149 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id sg-903004f8 --protocol tcp --port 22 --cidr 0.0.0.0/0
+SECURITY_GROUP=$(aws ec2 create-security-group --description "OpenVPN Port" --group-name VPN --output text)
+aws ec2 authorize-security-group-ingress --protocol udp --port 1194 --cidr 0.0.0.0/0 --group-id $SECURITY_GROUP
+aws ec2 authorize-security-group-ingress --protocol tcp --port 22 --cidr 0.0.0.0/0 --group-id $SECURITY_GROUP
 ```
 
 
@@ -46,66 +39,68 @@ lets AWS create a keypair, and saves your private key to ~/.ssh/vpn_key.pem. We 
 instance.
 
 ```bash
-aws ec2 create-key-pair --key-name VPN | jq -r ".KeyMaterial" > ~/.ssh/vpn_key.pem
+aws ec2 create-key-pair --key-name VPN --output json | jq -r ".KeyMaterial" > ~/.ssh/vpn_key.pem
+chmod 400 ~/.ssh/vpn_key.pem
 ```
-
 
 We are ready to launch the instance! The command below will launch an EC2 instance with the security group and the key
-pair we made above. The image-id given here is the latest Amazon Linux 2 at the time of writing. Make sure you replace
-the security group id with the actual id your command generated
+pair we made above. The image-id given here is the latest Amazon Linux 2 at the time of writing. Once we launch
+the instance we also want to get the public IP so we can shell in and setup OpenVPN. We show the public IP
+because we will need it when setting up the VPN.
 
 ```bash
-aws ec2 run-instances --image-id ami-04681a1dbd79675a5 --instance-type t2.nano --security-group-ids sg-903004f8 --key-name VPN --associate-public-ip-address
+INSTANCE_ID=$(aws ec2 run-instances --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=VPN_Instance}]' --image-id ami-04681a1dbd79675a5 --instance-type t2.nano --key-name VPN --associate-public-ip-address --output json --security-group-ids $SECURITY_GROUP | jq -r ".Instances[] | .InstanceId")
+PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[*].Instances[*].PublicIpAddress' --output text)
+echo $PUBLIC_IP
 ```
 
-The CLI should give a whole bunch of output here describing your brand new instance. All we care about at this point is
-the PublicIpAddress and the InstanceId. For the rest of this readme, we're going to pretend your public ip is 99.99.99.99.
-Let's shell into the box and setup OpenVPN.
+Once the instance finishes launching, shell into the box so we can setup OpenVPN.
 
 ```bash
-ssh -i ~/.ssh/vpn_key.pem ec2-user@99.99.99.99
+ssh -i ~/.ssh/vpn_key.pem ec2-user@$PUBLIC_IP
 ```
 
-Now that you're in the instance, add docker.
+Now that you're in the instance, add docker. This makes setting up OpenVPN super easy.
 
 ```bash
 sudo yum update -y
 sudo yum install -y docker
 sudo service docker start
 sudo usermod -a -G docker ec2-user
-
+exit
 ```
 
-At this point you'll need to logout and log back in to pickup the group permissions. Once you're back in the instance.
-The OpenVPN comes from https://github.com/kylemanna/docker-openvpn. For our purposes we mostly follow the quickstart steps on the
-README there. The only change we make is telling the VPN to restart when docker does. The step to create
-start the VPN container then would be:
+At this point you've need to logout and need to log back in to pickup the group permissions. Once you're back in the instance.
+The OpenVPN comes from [https://github.com/kylemanna/docker-openvpn](https://github.com/kylemanna/docker-openvpn).
+For our purposes we mostly follow the quickstart steps on the README there and make two changes:
+- Replace VPN.SERVERNAME.COM with your public ip that we've echoed above. You will also give this in the `Common Name`
+prompt when following the instructions in the README.
+- Add `--restart always` to the OpenVPN container so it restarts when we restart the instance. It would look like:
 
-`docker run -v $OVPN_DATA:/etc/openvpn -d -p 1194:1194/udp --restart always --cap-add=NET_ADMIN kylemanna/openvpn`
+`docker run -v $OVPN_DATA:/etc/openvpn -d -p 1194:1194/udp --restart always --cap-add=NET_ADMIN --name ovpn kylemanna/openvpn`
 
 After finishing the Quickstart guide there, you should have some CLIENTNAME.ovpn file on the instance.
 
 Log out of the instance and copy your new key to your local machine.
 ```bash
-scp -i ~/.ssh/vpn_key.pem ec2-user@99.99.99.99:CLIENTNAME.ovpn /desired/local/path/CLIENTNAME.ovpn
+scp -i ~/.ssh/vpn_key.pem ec2-user@$PUBLIC_IP:CLIENTNAME.ovpn CLIENTNAME.ovpn
 ```
 
 Now open up your favorite OpenVPN client and try to connect with your new key. If everything has worked correctly you
-should be able to Google "what's my ip" and it shows you 99.99.99.99.
+should be able to Google "what's my ip" and it shows you the public ip of your instance.
 
 With a working key locally, we can turn off port 22 now. No more shelling needs.
 ```bash
-aws ec2 revoke-security-group-ingress --group-name VPN --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 revoke-security-group-ingress --group-id $SECURITY_GROUP --protocol tcp --port 22 --cidr 0.0.0.0/0
 ```
 
 Now load up your favorite mobile OpenVPN client for iOS or Android and put your key on your phone (different approaches
 here based on mobile platform).
 
 #### Create Your Free Twilio Account
-Setup a phone number that can recieve your text messages and fire off the events for starting
+Setup a phone number that can receive your text messages and fire off the events for starting
 and stopping your VPN. Twilio has a free tier that allows you to have a single phone number. This
-phone number can only be used to call/message approved phone numbers. Even with this restriction
-though it works great for our use case.
+phone number can only be used to call/message approved phone numbers.
 
 - Head over to [Twilio](https://www.twilio.com/) and signup/login.
 - Create a Project
@@ -117,7 +112,7 @@ though it works great for our use case.
 - Add your personal phone number to the list of [Verified Callers](https://www.twilio.com/console/phone-numbers/verified)
 
 #### Deploy the API
-The API will be running on a combination of AWS Lambda and API Gateway powered via Zappa.
+The API will be running on a combination of AWS Lambda and API Gateway powered via [Zappa](https://github.com/Miserlou/Zappa).
 
 There are a few pieces of information we need to customize here for your implementation. Open up
 the `zappa_settings.json` file:
@@ -127,9 +122,9 @@ the `zappa_settings.json` file:
 {
     "TWILIO_ACCOUNT_SID": "your_value",  # The ACCOUNT SID value from the Twilio console
     "TWILIO_AUTH_TOKEN": "your_value",  # The AUTH TOKEN value from the Twilio console
-    "TWILIO_PHONE_NUMBER": "+14567890",  # The Twilio phone number you purchased
-    "ALLOWED_SENDER": "+14567890",  # Your cell phone number that was verified on Twilio
-    "EC2_INSTANCE_ID": "i-23452345",  # The instance id of your VPN
+    "TWILIO_PHONE_NUMBER": "+14565557890",  # The Twilio phone number you purchased
+    "ALLOWED_SENDER": "+14565557890",  # Your cell phone number that was verified on Twilio
+    "EC2_INSTANCE_ID": "i-1234567890",  # The instance id of your VPN
     "EC2_REGION": "us-east-1"  # The region of your EC2 instance
 }
 ```
@@ -160,3 +155,5 @@ message as a webhook.
 When your new number recieves a text, it will send a POST request to the API we have deployed.
 
 That's it! Try sending some texts to the Twilio phone number with "VPN on" and "VPN off" to make sure it works.
+
+If you remember to turn off the VPN when you're done using it, costs should be pennies.

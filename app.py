@@ -1,7 +1,7 @@
 import os
 
 import boto3
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from twilio.rest import Client
 
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
@@ -25,7 +25,7 @@ def handle_text():
     sender = request.values.get('From', '')
     if sender != ALLOWED_SENDER:
         # Only allow from my number, disregard the message.
-        return jsonify({'success': True})
+        return "Success"
 
     content = request.values.get('Body', '')
     instance = ec2.Instance(EC2_INSTANCE_ID)
@@ -34,7 +34,7 @@ def handle_text():
         if instance.state['Name'] != 'running':
             msg = 'The VPN is not running and has a status of: {}'.format(instance.state['Name'])
             respond_with(msg)
-            return jsonify({'success': True})
+            return "Success"
 
         instance.stop()
         respond_with("The instance has been stopped")
@@ -43,7 +43,7 @@ def handle_text():
         if instance.state['Name'] != 'stopped':
             msg = 'The VPN is not off, please try again later. It has a state of: {}'.format(instance.state['Name'])
             respond_with(msg)
-            return jsonify({'success': True})
+            return "Success"
 
         instance.start()
         respond_with("The instance has been started")
@@ -51,7 +51,7 @@ def handle_text():
     else:
         respond_with("I only respond to the commands 'VPN on' and 'VPN off'")
 
-    return jsonify({'success': True})
+    return "Success"
 
 
 def respond_with(text):
