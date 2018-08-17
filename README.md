@@ -159,4 +159,4 @@ message as a webhook.
 
 When your new number recieves a text, it will send a POST request to the API we have deployed.
 
-That's it! Try sending some texts with "VPN on" and "VPN off" to make sure it works.
+That's it! Try sending some texts to the Twilio phone number with "VPN on" and "VPN off" to make sure it works.
