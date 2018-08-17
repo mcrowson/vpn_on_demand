@@ -17,7 +17,7 @@ git clone https://github.com/mcrowson/vpn_on_demand
 cd vpn_on_demand
 ```
 
-This guide uses Python 3.6 and [jq](https://stedolan.github.io/jq/). jq just makes things a little easier
+This guide uses Python 3.6, [Zappa](https://github.com/Miserlou/Zappa) and [jq](https://stedolan.github.io/jq/). jq just makes things a little easier
 when pulling data out of the AWS CLI JSON responses.
 
 #### The VPN Instance
@@ -33,9 +33,8 @@ aws ec2 authorize-security-group-ingress --protocol tcp --port 22 --cidr 0.0.0.0
 ```
 
 
-Now that we have a security group, we are almost ready to launch the instance. First we will need to create a key pair
-to login to the instance with. If you already have a named key pair that you want to use, skip this step. This command
-lets AWS create a keypair, and saves your private key to ~/.ssh/vpn_key.pem. We will use this key to shell into the EC2
+Next create a key pair to login to the instance with. If you already have a named key pair that you want to use, skip this step.
+This command lets AWS create a keypair, and saves your private key to ~/.ssh/vpn_key.pem. We will use this key to shell into the EC2
 instance.
 
 ```bash
@@ -43,9 +42,9 @@ aws ec2 create-key-pair --key-name VPN --output json | jq -r ".KeyMaterial" > ~/
 chmod 400 ~/.ssh/vpn_key.pem
 ```
 
-We are ready to launch the instance! The command below will launch an EC2 instance with the security group and the key
-pair we made above. The image-id given here is the latest Amazon Linux 2 at the time of writing. Once we launch
-the instance we also want to get the public IP so we can shell in and setup OpenVPN. We show the public IP
+Launch an EC2 instance with the security group and the key pair we made above.
+The image-id given here is the latest Amazon Linux 2 at the time of writing. Once we launch
+the instance we also want to get the public IP so we can shell in and setup OpenVPN. Note the public IP
 because we will need it when setting up the VPN.
 
 ```bash
@@ -67,10 +66,9 @@ sudo yum update -y
 sudo yum install -y docker
 sudo service docker start
 sudo usermod -a -G docker ec2-user
-exit
 ```
 
-At this point you've need to logout and need to log back in to pickup the group permissions. Once you're back in the instance.
+At this point you need to logout and log back in to pickup the group permissions. Once you're back in the instance.
 The OpenVPN comes from [https://github.com/kylemanna/docker-openvpn](https://github.com/kylemanna/docker-openvpn).
 For our purposes we mostly follow the quickstart steps on the README there and make two changes:
 - Replace VPN.SERVERNAME.COM with your public ip that we've echoed above. You will also give this in the `Common Name`
