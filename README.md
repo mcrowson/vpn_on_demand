@@ -107,7 +107,7 @@ phone number can only be used to call/message approved phone numbers.
 - From the [Twilio Console](https://www.twilio.com/console) grab the ACCOUNT SID and AUTH TOKEN values. We will need those later.
 - Navigate to the [Purchase a Number](https://www.twilio.com/console/phone-numbers/search) page and buy a new number with SMS capabilities.
 
-<img src="images/purchase_number.png" width="300px">
+<img src="images/purchase_number.png" width="600px">
 
 - Add your personal phone number to the list of [Verified Callers](https://www.twilio.com/console/phone-numbers/verified)
 
@@ -150,7 +150,7 @@ The API is live now. So we are going back to Twilio to tell it to send incoming 
 - Towards the bottom of the page, add your API Gateway endpoint to the incoming
 message as a webhook.
 
-<img src="images/webhook.png" width="300px">
+<img src="images/webhook.png" width="700px">
 
 When your new number recieves a text, it will send a POST request to the API we have deployed.
 
