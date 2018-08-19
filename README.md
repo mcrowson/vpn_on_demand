@@ -9,7 +9,29 @@ This approach does it by combining the following tools:
  - A Twilio phone number to receive the text messages
  - An API via AWS Lambda and API Gateway to receive requests from Twilio and start/stop the EC2 instance
 
-### Set Up
+### Costs
+Here are the services used in this VPN setup and a discussion of their costs
+
+#### EC2 t2.nano
+Normally the cost of running your own VPN is paying for the instance to be up all the time. If you
+are still within the first 12 months of your AWS account, you can leave this t2.nano up for the
+entire year and it will be within the free tier. However if you are trying to conserve
+your free tier hours or are beyond the first twelve months, running the t2.nano is about $5
+per month. By running the VPN only when you need it on unsecured networks, the t2.nano cost
+should be extremely cheap. AWS bills by the second.
+
+#### AWS API Gateway
+Similar to EC2, API Gateway is free for the first 12 months up to 1 million calls
+per month. After 12 months it costs $3.50 per million API calls.
+
+#### AWS Lambda
+The first million Lambda calls are always free each month.
+
+#### Twilio
+We stay within their free tier usage in this guide which allows for purchasing a single phone number that
+can call/message pre-approved numbers.
+
+### Set Up Your VPN
 
 Clone the repo:
 ```bash
@@ -34,7 +56,7 @@ aws ec2 authorize-security-group-ingress --protocol tcp --port 22 --cidr 0.0.0.0
 
 
 Next create a key pair to login to the instance with. If you already have a named key pair that you want to use, skip this step.
-This command lets AWS create a keypair, and saves your private key to ~/.ssh/vpn_key.pem. We will use this key to shell into the EC2
+This command lets AWS create a key pair, and saves your private key to ~/.ssh/vpn_key.pem. We will use this key to shell into the EC2
 instance.
 
 ```bash
@@ -43,12 +65,16 @@ chmod 400 ~/.ssh/vpn_key.pem
 ```
 
 Launch an EC2 instance with the security group and the key pair we made above.
-The image-id given here is the latest Amazon Linux 2 at the time of writing. Once we launch
+The image-id given here is the latest Ubuntu 16.04 LTS at the time of writing. Once we launch
 the instance we also want to get the public IP so we can shell in and setup OpenVPN. Note the public IP
-because we will need it when setting up the VPN.
+because we will need it when setting up the VPN. We will also want to give the instance
+an elastic IP so it doesn't get a new public IPv4 with each stop/start.
 
 ```bash
-INSTANCE_ID=$(aws ec2 run-instances --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=VPN_Instance}]' --image-id ami-04681a1dbd79675a5 --instance-type t2.nano --key-name VPN --associate-public-ip-address --output json --security-group-ids $SECURITY_GROUP | jq -r ".Instances[] | .InstanceId")
+INSTANCE_ID=$(aws ec2 run-instances --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=VPN_Instance}]' --image-id ami-759bc50a --instance-type t2.nano --key-name VPN --associate-public-ip-address --output json --security-group-ids $SECURITY_GROUP | jq -r ".Instances[] | .InstanceId")
+aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+ELASTIC_ID=$(aws ec2 allocate-address --domain vpc --output json | jq -r ".AllocationId")
+aws ec2 associate-address --instance-id $INSTANCE_ID --allocation-id $ELASTIC_ID
 PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[*].Instances[*].PublicIpAddress' --output text)
 echo $PUBLIC_IP
 ```
@@ -56,32 +82,31 @@ echo $PUBLIC_IP
 Once the instance finishes launching, shell into the box so we can setup OpenVPN.
 
 ```bash
-ssh -i ~/.ssh/vpn_key.pem ec2-user@$PUBLIC_IP
+ssh -i ~/.ssh/vpn_key.pem ubuntu@$PUBLIC_IP
 ```
 
-Now that you're in the instance, add docker. This makes setting up OpenVPN super easy.
+Now that you're in the instance, add docker. This makes setting up OpenVPN much easier.
 
 ```bash
-sudo yum update -y
-sudo yum install -y docker
-sudo service docker start
-sudo usermod -a -G docker ec2-user
+curl -fsSL get.docker.com -o get-docker.sh
+sh get-docker.sh
+sudo usermod -aG docker ubuntu
 ```
 
 At this point you need to logout and log back in to pickup the group permissions. Once you're back in the instance.
 The OpenVPN comes from [https://github.com/kylemanna/docker-openvpn](https://github.com/kylemanna/docker-openvpn).
-For our purposes we mostly follow the quickstart steps on the README there and make two changes:
+For our purposes we mostly follow the quick start steps on the README there and make two changes:
 - Replace VPN.SERVERNAME.COM with your public ip that we've echoed above. You will also give this in the `Common Name`
 prompt when following the instructions in the README.
 - Add `--restart always` to the OpenVPN container so it restarts when we restart the instance. It would look like:
 
 `docker run -v $OVPN_DATA:/etc/openvpn -d -p 1194:1194/udp --restart always --cap-add=NET_ADMIN --name ovpn kylemanna/openvpn`
 
-After finishing the Quickstart guide there, you should have some CLIENTNAME.ovpn file on the instance.
+After finishing the quick start guide there, you should have some CLIENTNAME.ovpn file on the instance.
 
 Log out of the instance and copy your new key to your local machine.
 ```bash
-scp -i ~/.ssh/vpn_key.pem ec2-user@$PUBLIC_IP:CLIENTNAME.ovpn CLIENTNAME.ovpn
+scp -i ~/.ssh/vpn_key.pem ubuntu@$PUBLIC_IP:CLIENTNAME.ovpn CLIENTNAME.ovpn
 ```
 
 Now open up your favorite OpenVPN client and try to connect with your new key. If everything has worked correctly you
@@ -127,7 +152,7 @@ the `zappa_settings.json` file:
 }
 ```
 
-- Replace EC2_INSTANCE_ID in the `extra_permissions` setting with your actual instance id to give lambda permisions to turn it on/off
+- Replace EC2_INSTANCE_ID in the `extra_permissions` setting with your actual instance id to give lambda permission to turn it on/off
 - Replace the value in `s3_bucket` with the name of a bucket for holding your project during deployment.
 You can set this to some random value and Zappa will create the bucket for you.
 
@@ -150,7 +175,7 @@ message as a webhook.
 
 <img src="images/webhook.png" width="700px">
 
-When your new number recieves a text, it will send a POST request to the API we have deployed.
+When your new number receives a text, it will send a POST request to the API we have deployed.
 
 That's it! Try sending some texts to the Twilio phone number with "VPN on" and "VPN off" to make sure it works.
 
