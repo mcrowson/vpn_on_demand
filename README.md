@@ -20,6 +20,9 @@ your free tier hours or are beyond the first twelve months, running the t2.nano 
 per month. By running the VPN only when you need it on unsecured networks, the t2.nano cost
 should be extremely cheap. AWS bills by the second.
 
+#### EC2 Elastic IP
+$0.0005/hr when the node is offline.
+
 #### AWS API Gateway
 Similar to EC2, API Gateway is free for the first 12 months up to 1 million calls
 per month. After 12 months it costs $3.50 per million API calls.
