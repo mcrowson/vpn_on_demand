@@ -16,9 +16,7 @@ Here are the services used in this VPN setup and a discussion of their costs
 Normally the cost of running your own VPN is paying for the instance to be up all the time. If you
 are still within the first 12 months of your AWS account, you can leave this t2.nano up for the
 entire year and it will be within the free tier. However if you are trying to conserve
-your free tier hours or are beyond the first twelve months, running the t2.nano is about $5
-per month. By running the VPN only when you need it on unsecured networks, the t2.nano cost
-should be extremely cheap. AWS bills by the second.
+your free tier hours or are beyond the first twelve months, running the t2.nano is 0.00058/hr.
 
 #### EC2 Elastic IP
 $0.0005/hr when the node is offline.
