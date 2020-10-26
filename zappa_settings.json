@@ -3,7 +3,7 @@
         "app_function": "app.app",
         "debug": false,
         "project_name": "vpn-responder",
-        "runtime": "python3.6",
+        "runtime": "python3.8",
         "s3_bucket": "somebucketname",
         "aws_environment_variables" : {
             "TWILIO_ACCOUNT_SID": "your_value",
